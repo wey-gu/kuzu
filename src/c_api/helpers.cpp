@@ -1,6 +1,7 @@
 #include "c_api/helpers.h"
 
 #include <cstring>
+#include <cstdint>
 
 #ifdef _WIN32
 const uint64_t NS_TO_SEC = 10000000ULL;

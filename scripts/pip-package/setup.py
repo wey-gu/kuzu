@@ -104,7 +104,7 @@ class BuildExtFirst(_build_py):
         return super().run()
 
 
-setup(name='kuzu',
+setup(name='f-kuzu',
       version=kuzu_version,
       install_requires=[],
       ext_modules=[CMakeExtension(

@@ -13,12 +13,14 @@ env:
 
 jobs:
   build-wheels-arm64:
-    runs-on: self-hosted-mac-x64
+    runs-on: macos-14
     steps:
       - uses: actions/checkout@v4
 
       - name: Update nightly version
         if: ${{ inputs.isNightly == true }}
+        env:
+          SKIP_COMMIT: true
         run: |
           pip3 install packaging
           python3 update-nightly-build-version.py
@@ -34,7 +36,7 @@ jobs:
       - name: Build wheels for Apple Silicon
         uses: pypa/cibuildwheel@v2.22
         env:
-          CIBW_SKIP: pp*
+          CIBW_SKIP: pp* cp36* cp37* cp38* cp39* cp310* cp311* cp312* cp314*
           CIBW_ARCHS_MACOS: arm64
           CIBW_BUILD_VERBOSITY: 3
           MACOSX_DEPLOYMENT_TARGET: 11.0
@@ -48,12 +50,14 @@ jobs:
           path: ./scripts/pip-package/wheelhouse/*.whl
 
   build-wheels-x86_64:
-    runs-on: self-hosted-mac-x64
+    runs-on: macos-latest
     steps:
       - uses: actions/checkout@v4
 
       - name: Update nightly version
         if: ${{ inputs.isNightly == true }}
+        env:
+          SKIP_COMMIT: true
         run: |
           pip3 install packaging
           python3 update-nightly-build-version.py
@@ -69,7 +73,7 @@ jobs:
       - name: Build wheels for Intel
         uses: pypa/cibuildwheel@v2.22
         env:
-          CIBW_SKIP: pp* cp36*
+          CIBW_SKIP: pp* cp36* cp37* cp38* cp39* cp310* cp311* cp312* cp314*
           CIBW_ARCHS_MACOS: x86_64
           CIBW_BUILD_VERBOSITY: 3
           MACOSX_DEPLOYMENT_TARGET: 11.0

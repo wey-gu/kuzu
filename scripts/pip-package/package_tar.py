@@ -30,7 +30,7 @@ if __name__ == "__main__":
     if len(sys.argv) == 2:
         file_name = sys.argv[1]
     else:
-        file_name = "kuzu-%s.tar.gz" % _get_kuzu_version()
+        file_name = "f-kuzu-%s.tar.gz" % _get_kuzu_version()
     print("Creating %s..." % file_name)
 
     with TemporaryDirectory() as tempdir:
@@ -48,7 +48,7 @@ if __name__ == "__main__":
         )
 
         with tarfile.open(os.path.join(tempdir, "kuzu-source.tar")) as tar:
-            tar.extractall(path=os.path.join(tempdir, "kuzu-source"), filter=None)
+            tar.extractall(path=os.path.join(tempdir, "kuzu-source"), filter='data')
 
         os.remove(os.path.join(tempdir, "kuzu-source.tar"))
 
@@ -81,9 +81,28 @@ if __name__ == "__main__":
                 else:
                     f.write(line)
         shutil.copy2("README.md", os.path.join(tempdir, "README_PYTHON_BUILD.md"))
+        
+        # Ensure setuptools is installed before running setup.py egg_info
+        subprocess.check_call([sys.executable, "-m", "pip", "install", "setuptools", "wheel"], 
+                             cwd=tempdir)
+        
         subprocess.check_call([sys.executable, "setup.py", "egg_info"], cwd=tempdir)
+
+        # Find the egg-info directory (package name with hyphens converted to underscores)
+        # Since package name is now 'f-kuzu', egg-info will be 'f_kuzu.egg-info'
+        egg_info_dir = None
+        for item in os.listdir(tempdir):
+            if item.endswith(".egg-info"):
+                egg_info_dir = item
+                break
+
+        if egg_info_dir is None:
+            raise FileNotFoundError(
+                "Could not find .egg-info directory after running setup.py egg_info"
+            )
+
         shutil.copy2(
-            os.path.join(tempdir, "kuzu.egg-info", "PKG-INFO"),
+            os.path.join(tempdir, egg_info_dir, "PKG-INFO"),
             os.path.join(tempdir, "PKG-INFO"),
         )
         with tarfile.open(file_name, "w:gz") as sdist:

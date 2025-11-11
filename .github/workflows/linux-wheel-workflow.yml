@@ -11,48 +11,56 @@ on:
 
 jobs:
   build-linux-wheels-x86_64:
-    runs-on: kuzu-self-hosted-linux-building-x86_64
+    runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
 
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+
       - name: Update nightly version
         if: ${{ inputs.isNightly == true }}
+        env:
+          SKIP_COMMIT: true
         run: |
-          /opt/python/cp310-cp310/bin/python -m pip install packaging
-          /opt/python/cp310-cp310/bin/python update-nightly-build-version.py
+          python -m pip install packaging
+          python update-nightly-build-version.py
         working-directory: scripts
 
-      - name: Build wheels
+      - name: Create source distribution
         working-directory: ./scripts/pip-package/
         run: |
-          cp /home/runner/build_all_packages.sh .
-          ./build_all_packages.sh
+          rm -rf wheelhouse kuzu.tar.gz
+          mkdir wheelhouse
+          python package_tar.py kuzu.tar.gz
+
+      - name: Build wheels
+        uses: pypa/cibuildwheel@v2.22
+        env:
+          CIBW_SKIP: pp* cp36* cp37* cp38* cp39* cp310* cp311* cp312* cp314*
+          CIBW_ARCHS_LINUX: x86_64
+          CIBW_BUILD_VERBOSITY: 3
+          # Use newer manylinux image with GCC 12+ that properly supports AVX-512 intrinsics
+          # Reference: https://intel.github.io/hyperscan/dev-reference/getting_started.html
+          # Simsimd uses dynamic dispatch (like Hyperscan's "fat runtime"), so we compile all
+          # code paths (AVX-512, AVX2, etc.) and let runtime CPU detection select the best one.
+          CIBW_MANYLINUX_X86_64_IMAGE: manylinux_2_28
+          # Set compiler flags to allow AVX-512 compilation while maintaining compatibility
+          # We use a baseline that ensures compatibility, but allow AVX-512 code to compile
+          # via pragmas in simsimd. The dynamic dispatch will use AVX-512 on supported CPUs.
+          CIBW_ENVIRONMENT_LINUX: "CFLAGS='-march=x86-64 -mtune=generic' CXXFLAGS='-march=x86-64 -mtune=generic'"
+          CIBW_BEFORE_BUILD_LINUX: |
+            # Verify GCC version supports AVX-512 (should be GCC 12+ in manylinux_2_28)
+            gcc --version
+            echo "Building with AVX-512 support enabled via dynamic dispatch"
+            echo "Simsimd will automatically select the best SIMD implementation at runtime"
+        with:
+          package-dir: ./scripts/pip-package/kuzu.tar.gz
+          output-dir: ./scripts/pip-package/wheelhouse
 
       - uses: actions/upload-artifact@v4
         with:
           name: linux-wheels-x86_64
-          path: ./scripts/pip-package/wheelhouse/*manylinux_2_28_x86_64.whl
-
-  build-linux-wheels-aarch64:
-    # Make sure this job runs on the larger self-hosted Linux ARM64 machine
-    runs-on: [kuzu-self-hosted-linux-building-aarch64, ac8]
-    steps:
-      - uses: actions/checkout@v4
-
-      - name: Update nightly version
-        if: ${{ inputs.isNightly == true }}
-        run: |
-          /opt/python/cp310-cp310/bin/python -m pip install packaging
-          /opt/python/cp310-cp310/bin/python update-nightly-build-version.py
-        working-directory: scripts
-
-      - name: Build wheels
-        working-directory: ./scripts/pip-package/
-        run: |
-          cp /home/runner/build_all_packages.sh .
-          ./build_all_packages.sh
-
-      - uses: actions/upload-artifact@v4
-        with:
-          name: linux-wheels-aarch64
-          path: ./scripts/pip-package/wheelhouse/*manylinux_2_28_aarch64.whl
+          path: ./scripts/pip-package/wheelhouse/*manylinux*.whl
